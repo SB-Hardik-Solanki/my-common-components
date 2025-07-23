@@ -49,25 +49,38 @@ jobs:
       - name: Clone and update submodule
         run: |
           repo=${{ matrix.repo }}
-          git clone https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
+          echo "📦 Cloning $repo"
+          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/your-org/$repo.git
           cd $repo
+
+          echo "🔀 Creating branch $BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B $BRANCH_NAME
 
-          git checkout -B $BRANCH_NAME || git checkout -b $BRANCH_NAME || git switch -c $BRANCH_NAME
-
+          echo "🔁 Updating submodule"
           cd $COMMON_SUBMODULE_PATH
+
+          if [ ! -d ".git" ]; then
+            echo "❌ Submodule is not a Git repo (missing .git)"
+            exit 1
+          fi
+
           git fetch origin main
-          git checkout -B main origin/main
+          git checkout -B main origin/main  # ✅ fixes detached HEAD
+
           cd ../../..
+
+          echo "📌 Committing updated submodule pointer"
           git add $COMMON_SUBMODULE_PATH
           git commit -m "$COMMIT_MESSAGE" || echo "No changes"
           git push origin $BRANCH_NAME || echo "Nothing to push"
 
-          # PR creation
-          PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
+          echo "📨 Creating PR if needed"
+          PR_EXISTS=$(gh pr list --repo your-org/$repo --head $BRANCH_NAME --json number -q '.[0].number')
           if [[ -z "$PR_EXISTS" ]]; then
-            gh pr create --repo SB-Hardik-Solanki/$repo \
+            gh pr create \
+              --repo your-org/$repo \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
               --head "$BRANCH_NAME" \
