@@ -53,6 +53,9 @@ jobs:
           git clone https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
+          echo "🔧 Override submodule URL with token-based HTTPS"
+          git config submodule.src/shared.url https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
+
           echo "🔄 Initializing submodules"
           git submodule update --init --recursive  # ✅ IMPORTANT
 
