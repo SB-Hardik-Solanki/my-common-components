@@ -31,7 +31,8 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
+      matrix:
+        repo: [my-website-a, my-website-b]
     
     env:
       COMMON_SUBMODULE_PATH: src/components/common
