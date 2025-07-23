@@ -130,14 +130,6 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
           echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
 
-          # Send Slack alert if needed
-          if [[ "$any_stale" == "1" ]]; then
-            payload=$(jq -n --arg text "$alert_message" '{text: $text}')
-            curl -X POST -H 'Content-type: application/json' \
-              --data "$payload" \
-              ${{ secrets.SLACK_WEBHOOK_URL }}
-          fi
-
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
