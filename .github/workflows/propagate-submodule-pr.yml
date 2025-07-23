@@ -35,7 +35,7 @@ jobs:
         repo: [my-website-a, my-website-b]
     
     env:
-      COMMON_SUBMODULE_PATH: src/components/common
+      COMMON_SUBMODULE_PATH: src/shared
       BRANCH_NAME: update-common-submodule
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
