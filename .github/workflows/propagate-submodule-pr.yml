@@ -50,7 +50,7 @@ jobs:
         run: |
           repo=${{ matrix.repo }}
           echo "📦 Cloning $repo"
-          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/your-org/$repo.git
+          git clone https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
           echo "🔀 Creating branch $BRANCH_NAME"
@@ -77,10 +77,10 @@ jobs:
           git push origin $BRANCH_NAME || echo "Nothing to push"
 
           echo "📨 Creating PR if needed"
-          PR_EXISTS=$(gh pr list --repo your-org/$repo --head $BRANCH_NAME --json number -q '.[0].number')
+          PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
           if [[ -z "$PR_EXISTS" ]]; then
             gh pr create \
-              --repo your-org/$repo \
+              --repo SB-Hardik-Solanki/$repo \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
               --head "$BRANCH_NAME" \
