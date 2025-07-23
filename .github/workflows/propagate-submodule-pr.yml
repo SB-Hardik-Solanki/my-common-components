@@ -32,9 +32,6 @@ jobs:
 
     strategy:
       matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
-
-    name: Debug output
-    run: echo '${{ steps.set-matrix.outputs.matrix }}'
     
     env:
       COMMON_SUBMODULE_PATH: src/components/common
