@@ -58,7 +58,7 @@ jobs:
 
           cd $COMMON_SUBMODULE_PATH
           git fetch origin main
-          git checkout origin/main
+          git checkout -B main origin/main
           cd ../../..
           git add $COMMON_SUBMODULE_PATH
           git commit -m "$COMMIT_MESSAGE" || echo "No changes"
