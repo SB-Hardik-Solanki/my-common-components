@@ -4,9 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview"
+    "check-peer": "npm ls astro tailwindcss || echo 'Peer deps mismatch!'"
   },
   "repository": {
     "type": "git",
@@ -20,6 +18,8 @@
   },
   "homepage": "https://github.com/SB-Hardik-Solanki/my-common-components#readme",
   "peerDependencies": {
-    "astro": "^5.12.2"
+    "astro": "^5.12.2",
+    "@tailwindcss/vite": "^4.1.11",
+    "tailwindcss": "^4.1.11"
   }
 }
