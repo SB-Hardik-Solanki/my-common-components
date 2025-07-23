@@ -54,7 +54,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -B $BRANCH_NAME || git checkout -b $BRANCH_NAME
+          git checkout -B $BRANCH_NAME || git checkout -b $BRANCH_NAME || git switch -c $BRANCH_NAME
 
           cd $COMMON_SUBMODULE_PATH
           git fetch origin main
