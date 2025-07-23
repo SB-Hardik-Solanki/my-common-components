@@ -1,0 +1,146 @@
+name: Dynamic Submodule PR + Dashboard + Slack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  get-repos:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      list: ${{ steps.set-matrix.outputs.list }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Read repo list
+        id: set-matrix
+        run: |
+          raw=$(cat repo-list.txt | jq -R . | jq -s .)
+          echo "matrix={\"repo\": $raw}" >> $GITHUB_OUTPUT
+          echo "list=$raw" >> $GITHUB_OUTPUT
+
+  update-and-track:
+    needs: get-repos
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
+
+    env:
+      COMMON_SUBMODULE_PATH: src/components/common
+      BRANCH_NAME: update-common-submodule
+      COMMIT_MESSAGE: "chore: update common submodule"
+      PR_TITLE: "chore: update common submodule to latest main"
+      PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
+
+    steps:
+      - name: Install tools
+        run: sudo apt-get install gh jq -y
+
+      - name: Auth GH CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+
+      - name: Clone and update submodule
+        run: |
+          repo=${{ matrix.repo }}
+          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git
+          cd $repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B $BRANCH_NAME || git checkout -b $BRANCH_NAME
+
+          cd $COMMON_SUBMODULE_PATH
+          git fetch origin main
+          git checkout origin/main
+          cd ../../..
+          git add $COMMON_SUBMODULE_PATH
+          git commit -m "$COMMIT_MESSAGE" || echo "No changes"
+          git push origin $BRANCH_NAME || echo "Nothing to push"
+
+          # PR creation
+          PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
+          if [[ -z "$PR_EXISTS" ]]; then
+            gh pr create --repo SB-Hardik-Solanki/$repo \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY" \
+              --head "$BRANCH_NAME" \
+              --base "main"
+          fi
+
+  dashboard-and-alerts:
+    needs: get-repos
+    runs-on: ubuntu-latest
+
+    env:
+      STALE_DAYS: 7
+      DASHBOARD_ISSUE: 5
+
+    steps:
+      - name: Install tools
+        run: sudo apt-get install gh jq -y
+
+      - name: Auth GH CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+
+      - name: Build dashboard and Slack alert
+        run: |
+          mkdir -p dashboard
+          echo "<html><head><title>PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
+          echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
+
+          now_ts=$(date -u +%s)
+          alert_message="🚨 *Stale Submodule PR Alert*\n"
+          any_stale=0
+
+          repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
+          for repo in $repos; do
+            PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --head update-common-submodule --json number,state,url,createdAt -q '.[0]')
+            if [[ "$PR" != "" ]]; then
+              number=$(echo $PR | jq -r '.number')
+              state=$(echo $PR | jq -r '.state')
+              url=$(echo $PR | jq -r '.url')
+              created=$(echo $PR | jq -r '.createdAt')
+              created_ts=$(date -d "$created" +%s)
+              age_days=$(( (now_ts - created_ts) / 86400 ))
+
+              if [[ "$state" == "OPEN" && $age_days -gt $STALE_DAYS ]]; then
+                status="🟠 Stale ($age_days days)"
+                alert_message+="- \`${repo}\`: <$url|#${number}> (${age_days} days old)\n"
+                any_stale=1
+              elif [[ "$state" == "OPEN" ]]; then
+                status="🟢 Open"
+              elif [[ "$state" == "MERGED" ]]; then
+                status="🔵 Merged"
+              else
+                status="🔴 Closed"
+              fi
+
+              echo "<tr><td>$repo</td><td><a href='$url'>#${number}</a></td><td>$status</td><td>$created</td></tr>" >> dashboard/index.html
+            else
+              echo "<tr><td>$repo</td><td>N/A</td><td>⚪ No Changes</td><td>—</td></tr>" >> dashboard/index.html
+            fi
+          done
+
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+
+          # Send Slack alert if needed
+          if [[ "$any_stale" == "1" ]]; then
+            payload=$(jq -n --arg text "$alert_message" '{text: $text}')
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dashboard
+          publish_branch: gh-pages
