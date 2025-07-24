@@ -49,16 +49,15 @@ jobs:
       - name: Clone and update submodule
         run: |
           repo=${{ matrix.repo }}
-          echo "📦 Cloning $repo"
-          git clone https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
+          echo "📦 Cloning $repo with submodules using token"
+          
+          git clone --recurse-submodules https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
-          echo "🔧 Forcing HTTPS submodule URL"
-          git config -f .gitmodules submodule.src/shared.url https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
+          echo "🔧 Rewriting submodule URL to token-based HTTPS"
+          git config -f .gitmodules submodule.src/components/common.url https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
           git submodule sync
-
-          echo "🔄 Fully initializing submodule"
-          git submodule update --init --recursive --depth 1
+          git submodule update --init --recursive
 
           echo "🔀 Creating branch $BRANCH_NAME"
           git config user.name "github-actions[bot]"
@@ -68,8 +67,8 @@ jobs:
           echo "🔁 Updating submodule HEAD"
           cd src/shared
 
-          if [ ! -d ".git" ]; then
-            echo "❌ Submodule is not a Git repo (still missing .git)"
+          if [ ! -f ".git" ]; then
+            echo "❌ Submodule is still not a Git repo"
             exit 1
           fi
 
