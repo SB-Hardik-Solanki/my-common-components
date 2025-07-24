@@ -17,6 +17,9 @@ jobs:
       - name: 🧾 Checkout repository files
         uses: actions/checkout@v4
 
+      - name: list files
+        run: ls -l
+
       - name: 📥 Read repo list from repo-list.txt
         id: set-matrix
         run: |
