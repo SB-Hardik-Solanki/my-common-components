@@ -102,41 +102,45 @@ jobs:
   dashboard-and-publish:
     needs: get-repos
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Install tools
-        run: sudo apt-get install gh jq -y
+    - name: Install tools
+      run: sudo apt-get install gh jq -y
 
-      - name: Authenticate GitHub CLI
-        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+    - name: Authenticate GitHub CLI
+      run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
 
-      - name: Generate dashboard HTML
-        run: |
-          mkdir -p dashboard
-          echo "<html><head><title>Submodule PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
-          echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
+    - name: Generate dashboard HTML
+      run: |
+        mkdir -p dashboard
+        echo "<html><head><title>Submodule PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
+        echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
 
-          branch_name="common-update-${{ needs.get-repos.outputs.timestamp }}"
-          repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
-          for repo in $repos; do
-            PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --head "$branch_name" --json number,state,url,createdAt -q '.[0]')
-            if [[ "$PR" != "" ]]; then
-              number=$(echo $PR | jq -r '.number')
-              state=$(echo $PR | jq -r '.state')
-              url=$(echo $PR | jq -r '.url')
-              created=$(echo $PR | jq -r '.createdAt')
-              echo "<tr><td>$repo</td><td><a href='$url'>#${number}</a></td><td>$state</td><td>$created</td></tr>" >> dashboard/index.html
-            else
-              echo "<tr><td>$repo</td><td>N/A</td><td>No PR</td><td>—</td></tr>" >> dashboard/index.html
-            fi
-          done
+        branch_name="common-update-${{ needs.get-repos.outputs.timestamp }}"
+        repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
 
-          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+        for repo in $repos; do
+          echo "🔍 Querying PRs for SB-Hardik-Solanki/$repo @ $branch_name"
+          PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --head "$branch_name" --json number,state,url,createdAt -q '.[0]')
 
-      - name: Publish to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dashboard
-          publish_branch: gh-pages
+          if [[ "$PR" != "" && "$PR" != "null" ]]; then
+            number=$(echo "$PR" | jq -r '.number')
+            state=$(echo "$PR" | jq -r '.state')
+            url=$(echo "$PR" | jq -r '.url')
+            created=$(echo "$PR" | jq -r '.createdAt')
+            echo "<tr><td>$repo</td><td><a href='$url'>#${number}</a></td><td>$state</td><td>$created</td></tr>" >> dashboard/index.html
+          else
+            echo "<tr><td>$repo</td><td>N/A</td><td>No PR</td><td>—</td></tr>" >> dashboard/index.html
+          fi
+        done
+
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+        echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+
+    - name: Publish to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dashboard
+        publish_branch: gh-pages
+
