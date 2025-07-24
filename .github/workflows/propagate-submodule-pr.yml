@@ -31,9 +31,3 @@ jobs:
       - name: Set dynamic branch suffix
         id: timestamp
         run: echo "branch_suffix=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-
-  update-and-track:
-    needs: get-repos
-    runs-on: ubuntu-latest
-    strategy:
-      matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
