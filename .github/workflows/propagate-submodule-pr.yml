@@ -40,7 +40,7 @@ jobs:
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
       PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
-      GH_TOKEN: secrets.GH_DEPLOY_TOKEN
+      GITHUB_TOKEN: secrets.GH_DEPLOY_TOKEN
 
     steps:
       - name: Install tools
@@ -51,11 +51,11 @@ jobs:
           repo=${{ matrix.repo }}
           echo "📦 Cloning $repo with submodules using token"
           
-          git clone --recurse-submodules https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
+          git clone --recurse-submodules https://x-access-token:$GITHUB_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
           echo "🔧 Rewriting submodule URL to token-based HTTPS"
-          git config -f .gitmodules submodule.src/components/common.url https://x-access-token:$GH_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
+          git config -f .gitmodules submodule.src/components/common.url https://x-access-token:$GITHUB_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
           git submodule sync
           git submodule update --init --recursive
 
