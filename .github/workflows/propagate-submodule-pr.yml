@@ -14,19 +14,20 @@ jobs:
       timestamp: ${{ steps.timestamp.outputs.branch_suffix }}
 
     steps:
-      - name: Install tools
-        run: sudo apt-get install gh jq -y
-
-      - name: Authenticate GitHub CLI
-        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
-
-      - name: Fetch repo list
+      - name: Read repo list from repo-list.txt
         id: set-matrix
         run: |
-          REPOS=$(gh repo list SB-Hardik-Solanki --limit 100 --json name -q '.[].name' \
-            | grep '^website-' | jq -R . | jq -s .)
-          echo "matrix={\"repo\": $REPOS}" >> $GITHUB_OUTPUT
-          echo "list=$REPOS" >> $GITHUB_OUTPUT
+          if [ ! -f repo-list.txt ]; then
+            echo "❌ repo-list.txt not found!" >&2
+            exit 1
+          fi
+
+          REPO_LIST=$(cat repo-list.txt | grep -v '^#' | grep -v '^\s*$' | jq -R . | jq -s .)
+          echo "✅ Repo list parsed:"
+          echo "$REPO_LIST"
+
+          echo "matrix={\"repo\": $REPO_LIST}" >> $GITHUB_OUTPUT
+          echo "list=$REPO_LIST" >> $GITHUB_OUTPUT
 
       - name: Set dynamic branch suffix
         id: timestamp
@@ -34,13 +35,14 @@ jobs:
 
   update-and-track:
     needs: get-repos
+    if: needs.get-repos.outputs.list != '[]'
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
 
     env:
       COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/my-common-components.git
-      COMMON_SUBMODULE_PATH: src/shared
+      COMMON_SUBMODULE_PATH: src/components/common
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
       PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
@@ -81,7 +83,7 @@ jobs:
           echo "✅ Commit submodule update"
           git commit -m "$COMMIT_MESSAGE"
 
-          echo "🚀 Force-pushing HEAD to branch $BRANCH_NAME"
+          echo "🚀 Force-pushing to $BRANCH_NAME"
           git push --force https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME
 
           echo "📨 Create pull request"
