@@ -18,13 +18,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Read repo list
+        id: set-matrix
         run: |
-          # Read, trim, remove blank lines
-          clean_repos=$(grep -v '^\s*$' repo-list.txt | jq -R . | jq -s .)
-
-          # Output formatted matrix
-          echo "matrix={\"repo\": $clean_repos}" >> $GITHUB_OUTPUT
-          echo "list=$clean_repos" >> $GITHUB_OUTPUT
+          raw=$(cat repo-list.txt | jq -R . | jq -s .)
+          echo "matrix={\"repo\": $raw}" >> $GITHUB_OUTPUT
+          echo "list=$raw" >> $GITHUB_OUTPUT
 
   update-and-track:
     needs: get-repos
@@ -33,60 +31,43 @@ jobs:
     strategy:
       matrix:
         repo: [my-website-a, my-website-b]
-    
+
     env:
       COMMON_SUBMODULE_PATH: src/shared
       BRANCH_NAME: update-common-submodule
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
       PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
-      GITHUB_TOKEN: secrets.GH_DEPLOY_TOKEN
 
     steps:
       - name: Install tools
         run: sudo apt-get install gh jq -y
 
+      - name: Auth GH CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+
       - name: Clone and update submodule
         run: |
           repo=${{ matrix.repo }}
-          echo "📦 Cloning $repo with submodules using token"
-          
-          git clone --recurse-submodules https://x-access-token:$GITHUB_TOKEN@github.com/SB-Hardik-Solanki/$repo.git
+          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
-
-          echo "🔧 Rewriting submodule URL to token-based HTTPS"
-          git config -f .gitmodules submodule.src/components/common.url https://x-access-token:$GITHUB_TOKEN@github.com/SB-Hardik-Solanki/my-common-components.git
-          git submodule sync
-          git submodule update --init --recursive
-
-          echo "🔀 Creating branch $BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B $BRANCH_NAME
 
-          echo "🔁 Updating submodule HEAD"
-          cd src/shared
+          git checkout -B $BRANCH_NAME || git checkout -b $BRANCH_NAME
 
-          if [ ! -f ".git" ]; then
-            echo "❌ Submodule is still not a Git repo"
-            exit 1
-          fi
-
+          cd $COMMON_SUBMODULE_PATH
           git fetch origin main
-          git checkout -B main origin/main
-
+          git checkout origin/main
           cd ../../..
-
-          echo "📌 Committing updated submodule pointer"
-          git add src/shared
+          git add $COMMON_SUBMODULE_PATH
           git commit -m "$COMMIT_MESSAGE" || echo "No changes"
           git push origin $BRANCH_NAME || echo "Nothing to push"
 
-          echo "📨 Creating PR if needed"
+          # PR creation
           PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
           if [[ -z "$PR_EXISTS" ]]; then
-            gh pr create \
-              --repo SB-Hardik-Solanki/$repo \
+            gh pr create --repo SB-Hardik-Solanki/$repo \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
               --head "$BRANCH_NAME" \
@@ -104,6 +85,9 @@ jobs:
     steps:
       - name: Install tools
         run: sudo apt-get install gh jq -y
+
+      - name: Auth GH CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
 
       - name: Build dashboard and Slack alert
         run: |
@@ -146,6 +130,14 @@ jobs:
 
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
           echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+
+          # Send Slack alert if needed
+          if [[ "$any_stale" == "1" ]]; then
+            payload=$(jq -n --arg text "$alert_message" '{text: $text}')
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi
 
       - name: Publish to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
