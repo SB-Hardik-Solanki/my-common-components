@@ -28,9 +28,8 @@ jobs:
             exit 1
           fi
 
-          REPO_LIST=$(cat repo-list.txt | grep -v '^#' | grep -v '^\s*$' | jq -R . | jq -s .)
-          echo "✅ Repo list parsed:"
-          echo "$REPO_LIST"
+          REPO_LIST=$(cat repo-list.txt | grep -v '^\s*$' | grep -v '^#' | jq -R . | jq -s -c .)
+          echo "✅ Repo list parsed: $REPO_LIST"
 
           echo "matrix={\"repo\": $REPO_LIST}" >> $GITHUB_OUTPUT
           echo "list=$REPO_LIST" >> $GITHUB_OUTPUT
