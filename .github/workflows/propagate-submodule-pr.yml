@@ -35,8 +35,8 @@ jobs:
         repo: [my-website-a, my-website-b]
 
     env:
-      COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/your-org/astro-common-components.git
-      COMMON_SUBMODULE_PATH: src/components/common
+      COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/my-common-components.git
+      COMMON_SUBMODULE_PATH: src/shared
       BRANCH_NAME: update-common-submodule
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
@@ -53,7 +53,7 @@ jobs:
         run: |
           repo=${{ matrix.repo }}
           echo "📦 Cloning repo: $repo"
-          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/your-org/$repo.git
+          git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
           git config user.name "github-actions[bot]"
