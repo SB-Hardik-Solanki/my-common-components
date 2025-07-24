@@ -59,30 +59,37 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          echo "🔀 Create or reset branch $BRANCH_NAME"
+          echo "🔀 Create or reset update branch"
           git checkout -B $BRANCH_NAME
 
-          echo "🧹 Remove previous submodule"
+          echo "🧹 Remove existing submodule directory"
           git rm -rf $COMMON_SUBMODULE_PATH || rm -rf $COMMON_SUBMODULE_PATH
 
           echo "➕ Add submodule cleanly via HTTPS"
           git submodule add -b main $COMMON_REPO_URL $COMMON_SUBMODULE_PATH
           git submodule update --init --recursive
 
-          echo "📌 Commit updated submodule pointer"
+          echo "🔎 Check if any changes need committing"
           git add .gitmodules $COMMON_SUBMODULE_PATH
-          git commit -m "$COMMIT_MESSAGE" || echo "No changes"
+          git diff --staged --quiet && echo "🟢 No changes detected, skipping commit/push/PR." && exit 0
 
-          echo "🚀 Push from HEAD to $BRANCH_NAME to bypass protection rules"
-          git push https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME || echo "Nothing to push"
+          echo "✅ Committing submodule pointer update"
+          git commit -m "$COMMIT_MESSAGE"
 
-          echo "📨 Create PR if needed"
-          PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
-          if [[ -z "$PR_EXISTS" ]]; then
+          echo "🚀 Pushing branch from HEAD to remote"
+          git push https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME
+
+          echo "🔍 Checking if remote branch exists"
+          REF=$(git ls-remote --heads https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git $BRANCH_NAME)
+
+          if [ -n "$REF" ]; then
+            echo "📨 Creating pull request"
             gh pr create \
               --repo SB-Hardik-Solanki/$repo \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
               --head "$BRANCH_NAME" \
               --base "main"
+          else
+            echo "⚠️ Branch $BRANCH_NAME not found on remote, skipping PR"
           fi
