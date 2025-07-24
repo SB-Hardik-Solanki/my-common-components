@@ -14,7 +14,10 @@ jobs:
       timestamp: ${{ steps.timestamp.outputs.branch_suffix }}
 
     steps:
-      - name: Read repo list from repo-list.txt
+      - name: 🧾 Checkout repository files
+        uses: actions/checkout@v4
+
+      - name: 📥 Read repo list from repo-list.txt
         id: set-matrix
         run: |
           if [ ! -f repo-list.txt ]; then
@@ -29,7 +32,7 @@ jobs:
           echo "matrix={\"repo\": $REPO_LIST}" >> $GITHUB_OUTPUT
           echo "list=$REPO_LIST" >> $GITHUB_OUTPUT
 
-      - name: Set dynamic branch suffix
+      - name: 🕒 Set dynamic branch suffix
         id: timestamp
         run: echo "branch_suffix=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
 
@@ -42,7 +45,7 @@ jobs:
 
     env:
       COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/my-common-components.git
-      COMMON_SUBMODULE_PATH: src/components/common
+      COMMON_SUBMODULE_PATH: src/shared
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
       PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
