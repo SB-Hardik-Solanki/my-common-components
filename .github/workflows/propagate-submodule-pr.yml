@@ -36,7 +36,8 @@ jobs:
     needs: get-repos
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
+      matrix:
+        repo: [my-website-a, my-website-b]
 
     env:
       COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/my-common-components.git
