@@ -1,4 +1,4 @@
-name: Propagate Submodule via HTTPS
+name: Propagate Submodule via HTTPS + Dashboard
 
 on:
   push:
@@ -11,6 +11,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       list: ${{ steps.set-matrix.outputs.list }}
+      timestamp: ${{ steps.timestamp.outputs.branch_suffix }}
 
     steps:
       - name: Install tools
@@ -27,17 +28,19 @@ jobs:
           echo "matrix={\"repo\": $REPOS}" >> $GITHUB_OUTPUT
           echo "list=$REPOS" >> $GITHUB_OUTPUT
 
+      - name: Set dynamic branch suffix
+        id: timestamp
+        run: echo "branch_suffix=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
   update-and-track:
     needs: get-repos
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        repo: [my-website-a, my-website-b]
+      matrix: ${{ fromJson(needs.get-repos.outputs.matrix) }}
 
     env:
       COMMON_REPO_URL: https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/my-common-components.git
       COMMON_SUBMODULE_PATH: src/shared
-      BRANCH_NAME: update-common-submodule
       COMMIT_MESSAGE: "chore: update common submodule"
       PR_TITLE: "chore: update common submodule to latest main"
       PR_BODY: "This PR updates the common Astro submodule to the latest commit from `main`."
@@ -49,47 +52,80 @@ jobs:
       - name: Authenticate GitHub CLI
         run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
 
-      - name: Clone target repo
+      - name: Clone and update submodule
         run: |
           repo=${{ matrix.repo }}
+          BRANCH_NAME="sbbot/common-update-${{ needs.get-repos.outputs.timestamp }}"
           echo "📦 Cloning $repo"
           git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          echo "🔀 Create or reset update branch"
           git checkout -B $BRANCH_NAME
 
-          echo "🧹 Remove existing submodule directory"
+          echo "🧹 Remove old submodule"
           git rm -rf $COMMON_SUBMODULE_PATH || rm -rf $COMMON_SUBMODULE_PATH
 
-          echo "➕ Add submodule cleanly via HTTPS"
+          echo "➕ Add submodule via HTTPS"
           git submodule add -b main $COMMON_REPO_URL $COMMON_SUBMODULE_PATH
           git submodule update --init --recursive
 
-          echo "🔎 Check if any changes need committing"
+          echo "🔍 Check for changes"
           git add .gitmodules $COMMON_SUBMODULE_PATH
-          git diff --staged --quiet && echo "🟢 No changes detected, skipping commit/push/PR." && exit 0
+          git diff --staged --quiet && echo "🟢 No changes, skipping" && exit 0
 
-          echo "✅ Committing submodule pointer update"
+          echo "✅ Commit and push to $BRANCH_NAME"
           git commit -m "$COMMIT_MESSAGE"
-
-          echo "🚀 Pushing branch from HEAD to remote"
           git push https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME
 
-          echo "🔍 Checking if remote branch exists"
-          REF=$(git ls-remote --heads https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git $BRANCH_NAME)
+          echo "📨 Create pull request"
+          gh pr create \
+            --repo SB-Hardik-Solanki/$repo \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --head "$BRANCH_NAME" \
+            --base "main"
 
-          if [ -n "$REF" ]; then
-            echo "📨 Creating pull request"
-            gh pr create \
-              --repo SB-Hardik-Solanki/$repo \
-              --title "$PR_TITLE" \
-              --body "$PR_BODY" \
-              --head "$BRANCH_NAME" \
-              --base "main"
-          else
-            echo "⚠️ Branch $BRANCH_NAME not found on remote, skipping PR"
-          fi
+  dashboard-and-publish:
+    needs: get-repos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install tools
+        run: sudo apt-get install gh jq -y
+
+      - name: Authenticate GitHub CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+
+      - name: Generate dashboard HTML
+        run: |
+          mkdir -p dashboard
+          echo "<html><head><title>Submodule PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
+          echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
+
+          now_ts=$(date -u +%s)
+          branch_name="sbbot/common-update-${{ needs.get-repos.outputs.timestamp }}"
+          repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
+          for repo in $repos; do
+            PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --head "$branch_name" --json number,state,url,createdAt -q '.[0]')
+            if [[ "$PR" != "" ]]; then
+              number=$(echo $PR | jq -r '.number')
+              state=$(echo $PR | jq -r '.state')
+              url=$(echo $PR | jq -r '.url')
+              created=$(echo $PR | jq -r '.createdAt')
+              echo "<tr><td>$repo</td><td><a href='$url'>#${number}</a></td><td>$state</td><td>$created</td></tr>" >> dashboard/index.html
+            else
+              echo "<tr><td>$repo</td><td>N/A</td><td>No PR</td><td>—</td></tr>" >> dashboard/index.html
+            fi
+          done
+
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dashboard
+          publish_branch: gh-pages
