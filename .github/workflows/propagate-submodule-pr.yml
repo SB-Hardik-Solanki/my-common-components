@@ -77,7 +77,7 @@ jobs:
           git diff --staged --quiet && echo "🟢 No changes, skipping" && exit 0
 
           echo "✅ Commit and push to $BRANCH_NAME"
-          git commit -m "$COMMIT_MESSAGE"
+          git commit -m "$COMMIT_MESSAGE" --amend --all
           git push https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME
 
           echo "📨 Create pull request"
