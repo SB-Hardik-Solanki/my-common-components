@@ -72,13 +72,18 @@ jobs:
           git submodule add -b main $COMMON_REPO_URL $COMMON_SUBMODULE_PATH
           git submodule update --init --recursive
 
+          echo "🧼 Sanitize .gitmodules to remove token"
+          sed -i 's|https://x-access-token:[^@]*@|https://|' .gitmodules
+
           echo "🔍 Check for changes"
           git add .gitmodules $COMMON_SUBMODULE_PATH
           git diff --staged --quiet && echo "🟢 No changes, skipping" && exit 0
 
-          echo "✅ Commit and push to $BRANCH_NAME"
-          git commit -m "$COMMIT_MESSAGE" --amend --all
-          git push  https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME HEAD:$BRANCH_NAME
+          echo "✅ Commit submodule update"
+          git commit -m "$COMMIT_MESSAGE"
+
+          echo "🚀 Force-pushing HEAD to branch $BRANCH_NAME"
+          git push --force https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git HEAD:$BRANCH_NAME
 
           echo "📨 Create pull request"
           gh pr create \
@@ -105,7 +110,6 @@ jobs:
           echo "<html><head><title>Submodule PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
           echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
 
-          now_ts=$(date -u +%s)
           branch_name="common-update-${{ needs.get-repos.outputs.timestamp }}"
           repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
           for repo in $repos; do
