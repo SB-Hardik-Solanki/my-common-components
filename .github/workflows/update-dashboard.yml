@@ -1,0 +1,56 @@
+name: Update Submodule PR Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'  # Every hour
+
+jobs:
+  generate-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install gh jq -y
+
+      - name: Authenticate GitHub CLI
+        run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
+
+      - name: Read repo list and generate real-time dashboard
+        run: |
+          mkdir -p dashboard
+          echo "<html><head><title>Submodule PR Dashboard</title></head><body><h1>📊 Submodule PR Status</h1>" > dashboard/index.html
+          echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
+
+          # Use same timestamp naming pattern
+          branch_prefix="common-update-"
+          repos=$(cat repo-list.txt | grep -v '^#' | grep -v '^\s*$')
+
+          for repo in $repos; do
+            echo "🔍 Searching PRs for $repo"
+            PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --json number,state,url,createdAt,headRefName -q \
+              "[.[] | select(.headRefName | startswith(\"$branch_prefix\"))] | sort_by(.createdAt) | reverse | .[0]")
+
+            if [[ "$PR" != "" && "$PR" != "null" ]]; then
+              number=$(echo "$PR" | jq -r '.number')
+              state=$(echo "$PR" | jq -r '.state')
+              url=$(echo "$PR" | jq -r '.url')
+              created=$(echo "$PR" | jq -r '.createdAt')
+              echo "<tr><td>$repo</td><td><a href='$url'>#${number}</a></td><td>$state</td><td>$created</td></tr>" >> dashboard/index.html
+            else
+              echo "<tr><td>$repo</td><td>N/A</td><td>No PR</td><td>—</td></tr>" >> dashboard/index.html
+            fi
+          done
+
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          echo "</table><p>Last updated: $TIMESTAMP</p></body></html>" >> dashboard/index.html
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dashboard
+          publish_branch: gh-pages
