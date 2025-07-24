@@ -56,7 +56,7 @@ jobs:
       - name: Clone and update submodule
         run: |
           repo=${{ matrix.repo }}
-          BRANCH_NAME="sbbot/common-update-${{ needs.get-repos.outputs.timestamp }}"
+          BRANCH_NAME="common-update-${{ needs.get-repos.outputs.timestamp }}"
           echo "📦 Cloning $repo"
           git clone https://x-access-token:${{ secrets.GH_DEPLOY_TOKEN }}@github.com/SB-Hardik-Solanki/$repo.git
           cd $repo
@@ -106,7 +106,7 @@ jobs:
           echo "<table border='1'><tr><th>Repo</th><th>PR</th><th>Status</th><th>Created</th></tr>" >> dashboard/index.html
 
           now_ts=$(date -u +%s)
-          branch_name="sbbot/common-update-${{ needs.get-repos.outputs.timestamp }}"
+          branch_name="common-update-${{ needs.get-repos.outputs.timestamp }}"
           repos=$(echo '${{ needs.get-repos.outputs.list }}' | jq -r '.[]')
           for repo in $repos; do
             PR=$(gh pr list --repo SB-Hardik-Solanki/$repo --head "$branch_name" --json number,state,url,createdAt -q '.[0]')
