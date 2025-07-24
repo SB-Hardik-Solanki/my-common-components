@@ -22,7 +22,7 @@ jobs:
       - name: Fetch repo list
         id: set-matrix
         run: |
-          REPOS=$(gh repo list your-org --limit 100 --json name -q '.[].name' \
+          REPOS=$(gh repo list SB-Hardik-Solanki --limit 100 --json name -q '.[].name' \
             | grep '^website-' | jq -R . | jq -s .)
           echo "matrix={\"repo\": $REPOS}" >> $GITHUB_OUTPUT
           echo "list=$REPOS" >> $GITHUB_OUTPUT
@@ -31,7 +31,7 @@ jobs:
     needs: get-repos
     runs-on: ubuntu-latest
     strategy:
-      matrix: 
+      matrix:
         repo: [my-website-a, my-website-b]
 
     env:
@@ -49,7 +49,7 @@ jobs:
       - name: Authenticate GitHub CLI
         run: echo "${{ secrets.GH_DEPLOY_TOKEN }}" | gh auth login --with-token
 
-      - name: Clone and update submodule manually
+      - name: Clone target repo
         run: |
           repo=${{ matrix.repo }}
           echo "📦 Cloning repo: $repo"
@@ -59,28 +59,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          echo "🔀 Switching to update branch"
+          echo "🔀 Switch to or create update branch"
           git checkout -B $BRANCH_NAME
 
-          echo "🧹 Removing existing submodule directory"
-          rm -rf $COMMON_SUBMODULE_PATH
+          echo "🧹 Remove existing submodule (if any)"
+          git rm -rf $COMMON_SUBMODULE_PATH || rm -rf $COMMON_SUBMODULE_PATH
 
-          echo "⬇️ Cloning common components repo"
-          git clone $COMMON_REPO_URL $COMMON_SUBMODULE_PATH
-          cd $COMMON_SUBMODULE_PATH
-          git checkout main
-          cd ../../..
+          echo "➕ Re-add submodule via HTTPS"
+          git submodule add -b main $COMMON_REPO_URL $COMMON_SUBMODULE_PATH
+          git submodule update --init --recursive
 
-          echo "📌 Committing updated submodule pointer"
-          git add $COMMON_SUBMODULE_PATH
-          git commit -m "$COMMIT_MESSAGE" || echo "No changes to commit"
+          echo "📌 Commit updated submodule pointer"
+          git add .gitmodules $COMMON_SUBMODULE_PATH
+          git commit -m "$COMMIT_MESSAGE" || echo "No changes"
           git push origin $BRANCH_NAME || echo "Nothing to push"
 
-          echo "📨 Creating PR if not exists"
-          PR_EXISTS=$(gh pr list --repo your-org/$repo --head $BRANCH_NAME --json number -q '.[0].number')
+          echo "📨 Create PR if not already open"
+          PR_EXISTS=$(gh pr list --repo SB-Hardik-Solanki/$repo --head $BRANCH_NAME --json number -q '.[0].number')
           if [[ -z "$PR_EXISTS" ]]; then
             gh pr create \
-              --repo your-org/$repo \
+              --repo SB-Hardik-Solanki/$repo \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
               --head "$BRANCH_NAME" \
